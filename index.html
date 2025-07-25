@@ -59,7 +59,7 @@
 
   async function fetchTopTitles(platform) {
     const providerId = PROVIDERS[platform];
-    const url = `https://api.themoviedb.org/3/discover/movie?api_key=${cbfde925a00faf1b31720306ddde1dea}&language=en-US&sort_by=vote_average.desc&vote_count.gte=500&with_watch_providers=${providerId}&watch_region=US&page=1`;
+    const url = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&language=en-US&sort_by=vote_average.desc&vote_count.gte=500&with_watch_providers=${providerId}&watch_region=US&page=1`;
 
     const response = await fetch(url);
     const data = await response.json();
