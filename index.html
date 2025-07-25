@@ -92,25 +92,62 @@
     };
 
     /**
-     * Retrieves a quantum random number from ANU's Quantum Random Number Generator API.
-     * The returned value is scaled to the range 0–(max-1) using the modulus operator.
-     *
-     * @param {number} max The exclusive upper bound for the random number.
-     * @returns {Promise<number>} A promise that resolves with a random integer between 0 and max‑1.
+     * The ANU QRNG API is limited to one request per minute. To respect this
+     * limitation and still provide random numbers on demand, we prefetch a
+     * buffer of 8‑bit random values. Each call to getQuantumRandomNumber
+     * consumes one value from this buffer. When the buffer is empty and a
+     * minute has elapsed since the last fetch, a new batch is requested. If
+     * the buffer empties before the rate‑limit window expires, an error
+     * informs the user to wait.
      */
-    async function getQuantumRandomNumber(max) {
-      // The ANU QRNG API returns an array of unsigned 8‑bit integers. We request a single value.
-      const apiUrl = 'https://qrng.anu.edu.au/API/jsonI.php?length=1&type=uint8';
-      const response = await fetch(apiUrl);
+    const randomBuffer = [];
+    let lastFetchTime = 0;
+    let fetching = false;
+
+    /**
+     * Fetch a batch of quantum random bytes from the ANU API and append
+     * them to the buffer. The batch size can be adjusted based on expected
+     * usage.
+     * @param {number} batchSize Number of bytes to fetch.
+     */
+    async function refillRandomBuffer(batchSize = 128) {
+      if (fetching) return;
+      const now = Date.now();
+      if (now - lastFetchTime < 60000) {
+        throw new Error('Quantum randomness rate limit exceeded – please wait a minute and try again.');
+      }
+      fetching = true;
+      const apiUrl = `https://qrng.anu.edu.au/API/jsonI.php?length=${batchSize}&type=uint8`;
+      const response = await fetch(apiUrl, { mode: 'cors', cache: 'no-store' });
       if (!response.ok) {
+        fetching = false;
         throw new Error('Network response was not ok');
       }
       const data = await response.json();
       if (!data.success || !data.data || data.data.length === 0) {
+        fetching = false;
         throw new Error('Invalid response from quantum API');
       }
-      const rawValue = data.data[0];
-      return rawValue % max;
+      randomBuffer.push(...data.data);
+      lastFetchTime = Date.now();
+      fetching = false;
+    }
+
+    /**
+     * Consume a quantum random byte from the buffer and scale it to the
+     * desired range. If the buffer is empty, this function will attempt to
+     * refill it (respecting the API’s rate limit).
+     * @param {number} max Exclusive upper bound for the random number.
+     */
+    async function getQuantumRandomNumber(max) {
+      if (randomBuffer.length === 0) {
+        await refillRandomBuffer();
+      }
+      if (randomBuffer.length === 0) {
+        throw new Error('No quantum random numbers available. Please wait and try again.');
+      }
+      const raw = randomBuffer.shift();
+      return raw % max;
     }
 
     /**
