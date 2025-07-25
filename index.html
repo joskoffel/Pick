@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quantum Streaming Recommendation</title>
+  <!-- Tailwind CSS via CDN for styling -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- A few custom styles to refine the appearance -->
+  <style>
+    /* Smooth transition for button hover state */
+    #generateBtn {
+      transition: background-color 0.2s ease;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+  <main class="max-w-lg w-full p-8 bg-white rounded-xl shadow-lg text-center">
+    <h1 class="text-2xl font-bold mb-6">Quantum Random Picker</h1>
+    <!-- Platform selection checkboxes -->
+    <div class="flex justify-center space-x-8 mb-8">
+      <label class="flex items-center space-x-2">
+        <input type="checkbox" id="netflix" class="h-5 w-5 text-red-600 border-gray-300 rounded">
+        <span class="text-gray-700 font-medium">Netflix</span>
+      </label>
+      <label class="flex items-center space-x-2">
+        <input type="checkbox" id="max" class="h-5 w-5 text-blue-600 border-gray-300 rounded">
+        <span class="text-gray-700 font-medium">MAX</span>
+      </label>
+      <label class="flex items-center space-x-2">
+        <input type="checkbox" id="disney" class="h-5 w-5 text-indigo-600 border-gray-300 rounded">
+        <span class="text-gray-700 font-medium">Disney+</span>
+      </label>
+    </div>
+    <!-- Generate button -->
+    <button id="generateBtn" class="px-8 py-4 bg-blue-600 text-white font-semibold rounded-full hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300">Generovať</button>
+    <!-- Message area for warnings or errors -->
+    <div id="message" class="mt-6 text-red-600 hidden"></div>
+    <!-- Loading indicator -->
+    <div id="loading" class="mt-6 text-gray-500 hidden">Fetching quantum randomness...</div>
+    <!-- Result area to display the selected title and description -->
+    <div id="result" class="mt-6 text-left"></div>
+  </main>
+  <script>
+    /*
+     * Hard‑coded lists of critically acclaimed titles for each streaming platform.
+     * Each list contains objects with a title and a concise description.
+     */
+    const titles = {
+      netflix: [
+        {
+          title: "The Crown",
+          description: "A lavish drama chronicling the reign of Queen Elizabeth II and the events that shaped the second half of the 20th century."
+        },
+        {
+          title: "Stranger Things",
+          description: "An ensemble of kids confronts sinister supernatural forces and secret government experiments in their small 1980s Indiana town."
+        },
+        {
+          title: "Roma",
+          description: "A deeply personal film depicting the life of a live‑in housekeeper for a middle‑class family in 1970s Mexico City, capturing the complexities of class and domestic life."
+        }
+      ],
+      max: [
+        {
+          title: "Game of Thrones",
+          description: "An epic fantasy saga exploring power, loyalty and betrayal across warring families vying for control of the Iron Throne."
+        },
+        {
+          title: "The Sopranos",
+          description: "A New Jersey mob boss juggles the demands of his criminal organization with family life, grappling with anxiety and moral dilemmas."
+        },
+        {
+          title: "Chernobyl",
+          description: "A meticulous dramatization of the 1986 nuclear disaster, portraying the human cost and systemic failures behind one of history's worst accidents."
+        }
+      ],
+      disney: [
+        {
+          title: "The Mandalorian",
+          description: "Set in the Star Wars universe, a lone bounty hunter traverses the galaxy, forging an unexpected bond with a mysterious child."
+        },
+        {
+          title: "WandaVision",
+          description: "Blending classic sitcoms with Marvel action, Wanda Maximoff and Vision navigate suburban life while unraveling a deeper mystery."
+        },
+        {
+          title: "Soul",
+          description: "An animated feature following a jazz musician who, after a near‑death experience, reexamines what makes life meaningful."
+        }
+      ]
+    };
+
+    /**
+     * Retrieves a quantum random number from ANU's Quantum Random Number Generator API.
+     * The returned value is scaled to the range 0–(max-1) using the modulus operator.
+     *
+     * @param {number} max The exclusive upper bound for the random number.
+     * @returns {Promise<number>} A promise that resolves with a random integer between 0 and max‑1.
+     */
+    async function getQuantumRandomNumber(max) {
+      // The ANU QRNG API returns an array of unsigned 8‑bit integers. We request a single value.
+      const apiUrl = 'https://qrng.anu.edu.au/API/jsonI.php?length=1&type=uint8';
+      const response = await fetch(apiUrl);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const data = await response.json();
+      if (!data.success || !data.data || data.data.length === 0) {
+        throw new Error('Invalid response from quantum API');
+      }
+      const rawValue = data.data[0];
+      return rawValue % max;
+    }
+
+    /**
+     * Handles click events on the "Generovať" button.
+     * Validates selection, shows loading state, fetches a quantum random number,
+     * selects a title from the chosen platforms, and displays the result.
+     */
+    document.getElementById('generateBtn').addEventListener('click', async () => {
+      const messageEl = document.getElementById('message');
+      const loadingEl = document.getElementById('loading');
+      const resultEl = document.getElementById('result');
+      // Reset messages and result area
+      messageEl.classList.add('hidden');
+      loadingEl.classList.add('hidden');
+      resultEl.innerHTML = '';
+      // Determine which platforms are selected
+      const selectedPlatforms = [];
+      if (document.getElementById('netflix').checked) selectedPlatforms.push('netflix');
+      if (document.getElementById('max').checked) selectedPlatforms.push('max');
+      if (document.getElementById('disney').checked) selectedPlatforms.push('disney');
+      // If none selected, display warning and abort
+      if (selectedPlatforms.length === 0) {
+        messageEl.textContent = 'Please select at least one platform.';
+        messageEl.classList.remove('hidden');
+        return;
+      }
+      // Build a combined list of titles based on selections
+      const combined = [];
+      selectedPlatforms.forEach(platform => {
+        combined.push(...titles[platform]);
+      });
+      // Show loading indicator while fetching quantum random number
+      loadingEl.classList.remove('hidden');
+      try {
+        const index = await getQuantumRandomNumber(combined.length);
+        const chosen = combined[index];
+        // Display the selected title and its description
+        resultEl.innerHTML =
+          '<h2 class="text-xl font-semibold mb-2">' + chosen.title + '</h2>' +
+          '<p class="text-gray-700">' + chosen.description + '</p>';
+      } catch (error) {
+        // Show error message to the user
+        messageEl.textContent = 'Error fetching quantum randomness: ' + error.message;
+        messageEl.classList.remove('hidden');
+      } finally {
+        // Hide loading indicator regardless of success or failure
+        loadingEl.classList.add('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
