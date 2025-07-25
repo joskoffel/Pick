@@ -41,162 +41,137 @@
     <!-- Result area to display the selected title and description -->
     <div id="result" class="mt-6 text-left"></div>
   </main>
-  <script>
-    /*
-     * Hard‑coded lists of critically acclaimed titles for each streaming platform.
-     * Each list contains objects with a title and a concise description.
-     */
-    const titles = {
-      netflix: [
-        {
-          title: "The Crown",
-          description: "A lavish drama chronicling the reign of Queen Elizabeth II and the events that shaped the second half of the 20th century."
-        },
-        {
-          title: "Stranger Things",
-          description: "An ensemble of kids confronts sinister supernatural forces and secret government experiments in their small 1980s Indiana town."
-        },
-        {
-          title: "Roma",
-          description: "A deeply personal film depicting the life of a live‑in housekeeper for a middle‑class family in 1970s Mexico City, capturing the complexities of class and domestic life."
-        }
-      ],
-      max: [
-        {
-          title: "Game of Thrones",
-          description: "An epic fantasy saga exploring power, loyalty and betrayal across warring families vying for control of the Iron Throne."
-        },
-        {
-          title: "The Sopranos",
-          description: "A New Jersey mob boss juggles the demands of his criminal organization with family life, grappling with anxiety and moral dilemmas."
-        },
-        {
-          title: "Chernobyl",
-          description: "A meticulous dramatization of the 1986 nuclear disaster, portraying the human cost and systemic failures behind one of history's worst accidents."
-        }
-      ],
-      disney: [
-        {
-          title: "The Mandalorian",
-          description: "Set in the Star Wars universe, a lone bounty hunter traverses the galaxy, forging an unexpected bond with a mysterious child."
-        },
-        {
-          title: "WandaVision",
-          description: "Blending classic sitcoms with Marvel action, Wanda Maximoff and Vision navigate suburban life while unraveling a deeper mystery."
-        },
-        {
-          title: "Soul",
-          description: "An animated feature following a jazz musician who, after a near‑death experience, reexamines what makes life meaningful."
-        }
-      ]
-    };
+ <!-- označím tu len JS časť, HTML zvyšok zostal nezmenený -->
+<script>
+  const TMDB_API_KEY = 'YOUR_TMDB_API_KEY_HERE';
 
-    /**
-     * The ANU QRNG API is limited to one request per minute. To respect this
-     * limitation and still provide random numbers on demand, we prefetch a
-     * buffer of 8‑bit random values. Each call to getQuantumRandomNumber
-     * consumes one value from this buffer. When the buffer is empty and a
-     * minute has elapsed since the last fetch, a new batch is requested. If
-     * the buffer empties before the rate‑limit window expires, an error
-     * informs the user to wait.
-     */
-    const randomBuffer = [];
-    let lastFetchTime = 0;
-    let fetching = false;
+  const PROVIDERS = {
+    netflix: 8,
+    max: 384,
+    disney: 337
+  };
 
-    /**
-     * Fetch a batch of quantum random bytes from the ANU API and append
-     * them to the buffer. The batch size can be adjusted based on expected
-     * usage.
-     * @param {number} batchSize Number of bytes to fetch.
-     */
-    async function refillRandomBuffer(batchSize = 128) {
-      if (fetching) return;
-      const now = Date.now();
-      if (now - lastFetchTime < 60000) {
-        throw new Error('Quantum randomness rate limit exceeded – please wait a minute and try again.');
-      }
-      fetching = true;
-      const apiUrl = `https://qrng.anu.edu.au/API/jsonI.php?length=${batchSize}&type=uint8`;
-      const response = await fetch(apiUrl, { mode: 'cors', cache: 'no-store' });
-      if (!response.ok) {
-        fetching = false;
-        throw new Error('Network response was not ok');
-      }
-      const data = await response.json();
-      if (!data.success || !data.data || data.data.length === 0) {
-        fetching = false;
-        throw new Error('Invalid response from quantum API');
-      }
-      randomBuffer.push(...data.data);
-      lastFetchTime = Date.now();
+  const titles = {
+    netflix: [],
+    max: [],
+    disney: []
+  };
+
+  async function fetchTopTitles(platform) {
+    const providerId = PROVIDERS[platform];
+    const url = `https://api.themoviedb.org/3/discover/movie?api_key=${TMDB_API_KEY}&language=en-US&sort_by=vote_average.desc&vote_count.gte=500&with_watch_providers=${providerId}&watch_region=US&page=1`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    // Prepíšme na formát tvojej appky
+    titles[platform] = data.results.slice(0, 20).map(movie => ({
+      title: movie.title,
+      description: movie.overview || "No description available."
+    }));
+  }
+
+  async function preloadAllPlatforms() {
+    await Promise.all([
+      fetchTopTitles('netflix'),
+      fetchTopTitles('max'),
+      fetchTopTitles('disney')
+    ]);
+  }
+
+  // Quantum buffer as before
+  const randomBuffer = [];
+  let lastFetchTime = 0;
+  let fetching = false;
+
+  async function refillRandomBuffer(batchSize = 128) {
+    if (fetching) return;
+    const now = Date.now();
+    if (now - lastFetchTime < 60000) {
+      throw new Error('Quantum randomness rate limit exceeded – please wait a minute and try again.');
+    }
+    fetching = true;
+    const apiUrl = `https://qrng.anu.edu.au/API/jsonI.php?length=${batchSize}&type=uint8`;
+    const response = await fetch(apiUrl, { mode: 'cors', cache: 'no-store' });
+    if (!response.ok) {
       fetching = false;
+      throw new Error('Network response was not ok');
+    }
+    const data = await response.json();
+    if (!data.success || !data.data || data.data.length === 0) {
+      fetching = false;
+      throw new Error('Invalid response from quantum API');
+    }
+    randomBuffer.push(...data.data);
+    lastFetchTime = Date.now();
+    fetching = false;
+  }
+
+  async function getQuantumRandomNumber(max) {
+    if (randomBuffer.length === 0) {
+      await refillRandomBuffer();
+    }
+    if (randomBuffer.length === 0) {
+      throw new Error('No quantum random numbers available. Please wait and try again.');
+    }
+    const raw = randomBuffer.shift();
+    return raw % max;
+  }
+
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+      await preloadAllPlatforms();
+    } catch (e) {
+      console.error("TMDb loading failed:", e);
+      alert("Nepodarilo sa načítať zoznam filmov z TMDb. Skontroluj API kľúč.");
+    }
+  });
+
+  document.getElementById('generateBtn').addEventListener('click', async () => {
+    const messageEl = document.getElementById('message');
+    const loadingEl = document.getElementById('loading');
+    const resultEl = document.getElementById('result');
+
+    messageEl.classList.add('hidden');
+    loadingEl.classList.add('hidden');
+    resultEl.innerHTML = '';
+
+    const selectedPlatforms = [];
+    if (document.getElementById('netflix').checked) selectedPlatforms.push('netflix');
+    if (document.getElementById('max').checked) selectedPlatforms.push('max');
+    if (document.getElementById('disney').checked) selectedPlatforms.push('disney');
+
+    if (selectedPlatforms.length === 0) {
+      messageEl.textContent = 'Please select at least one platform.';
+      messageEl.classList.remove('hidden');
+      return;
     }
 
-    /**
-     * Consume a quantum random byte from the buffer and scale it to the
-     * desired range. If the buffer is empty, this function will attempt to
-     * refill it (respecting the API’s rate limit).
-     * @param {number} max Exclusive upper bound for the random number.
-     */
-    async function getQuantumRandomNumber(max) {
-      if (randomBuffer.length === 0) {
-        await refillRandomBuffer();
-      }
-      if (randomBuffer.length === 0) {
-        throw new Error('No quantum random numbers available. Please wait and try again.');
-      }
-      const raw = randomBuffer.shift();
-      return raw % max;
-    }
-
-    /**
-     * Handles click events on the "Generovať" button.
-     * Validates selection, shows loading state, fetches a quantum random number,
-     * selects a title from the chosen platforms, and displays the result.
-     */
-    document.getElementById('generateBtn').addEventListener('click', async () => {
-      const messageEl = document.getElementById('message');
-      const loadingEl = document.getElementById('loading');
-      const resultEl = document.getElementById('result');
-      // Reset messages and result area
-      messageEl.classList.add('hidden');
-      loadingEl.classList.add('hidden');
-      resultEl.innerHTML = '';
-      // Determine which platforms are selected
-      const selectedPlatforms = [];
-      if (document.getElementById('netflix').checked) selectedPlatforms.push('netflix');
-      if (document.getElementById('max').checked) selectedPlatforms.push('max');
-      if (document.getElementById('disney').checked) selectedPlatforms.push('disney');
-      // If none selected, display warning and abort
-      if (selectedPlatforms.length === 0) {
-        messageEl.textContent = 'Please select at least one platform.';
-        messageEl.classList.remove('hidden');
-        return;
-      }
-      // Build a combined list of titles based on selections
-      const combined = [];
-      selectedPlatforms.forEach(platform => {
-        combined.push(...titles[platform]);
-      });
-      // Show loading indicator while fetching quantum random number
-      loadingEl.classList.remove('hidden');
-      try {
-        const index = await getQuantumRandomNumber(combined.length);
-        const chosen = combined[index];
-        // Display the selected title and its description
-        resultEl.innerHTML =
-          '<h2 class="text-xl font-semibold mb-2">' + chosen.title + '</h2>' +
-          '<p class="text-gray-700">' + chosen.description + '</p>';
-      } catch (error) {
-        // Show error message to the user
-        messageEl.textContent = 'Error fetching quantum randomness: ' + error.message;
-        messageEl.classList.remove('hidden');
-      } finally {
-        // Hide loading indicator regardless of success or failure
-        loadingEl.classList.add('hidden');
-      }
+    const combined = [];
+    selectedPlatforms.forEach(platform => {
+      combined.push(...titles[platform]);
     });
-  </script>
+
+    if (combined.length === 0) {
+      messageEl.textContent = 'No titles loaded. Please wait or check your API key.';
+      messageEl.classList.remove('hidden');
+      return;
+    }
+
+    loadingEl.classList.remove('hidden');
+    try {
+      const index = await getQuantumRandomNumber(combined.length);
+      const chosen = combined[index];
+      resultEl.innerHTML =
+        '<h2 class="text-xl font-semibold mb-2">' + chosen.title + '</h2>' +
+        '<p class="text-gray-700">' + chosen.description + '</p>';
+    } catch (error) {
+      messageEl.textContent = 'Error fetching quantum randomness: ' + error.message;
+      messageEl.classList.remove('hidden');
+    } finally {
+      loadingEl.classList.add('hidden');
+    }
+  });
+</script>
 </body>
 </html>
