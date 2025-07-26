@@ -256,7 +256,9 @@
     const isDark = document.documentElement.classList.contains('dark');
     // Use simple unicode glyphs for reliability
     btn.textContent = isDark ? '☀️' : '🌙';
-    btn.className = isDark ? 'text-yellow-400 text-2xl' : 'text-gray-600 text-2xl';
+    btn.classList.remove('text-yellow-400', 'text-gray-600');
+    btn.classList.add(isDark ? 'text-yellow-400' : 'text-gray-600');
+    btn.classList.add('text-2xl', 'focus:outline-none');
   }
 
   // Display quantum operations sequentially; return an interval ID
